@@ -209,30 +209,62 @@ conda run -n phmr bash scripts/fetch_data.sh
 
 > Los scripts cambian automáticamente al entorno conda correcto. No necesitas activar nada manualmente.
 
-```bash
-# Pipeline completo desde un video
-python scripts/run_pipeline.py --video /ruta/al/video.mp4
+### Pipeline completo
 
-# RTX 3050 / GPUs con poca VRAM — usar siempre --static-camera
+```bash
+# Desde un video (RTX 3050 / GPUs con poca VRAM — usar siempre --static-camera)
 python scripts/run_pipeline.py --video /ruta/al/video.mp4 --static-camera
 
-# Elegir robot
-python scripts/run_pipeline.py --video /ruta/al/video.mp4 --static-camera --robot unitree_h1
+# Especificando el robot destino
+python scripts/run_pipeline.py --video /ruta/al/video.mp4 --static-camera --robot unitree_g1
+python scripts/run_pipeline.py --video /ruta/al/video.mp4 --static-camera --robot unitree_h1_2
 
 # Continuar desde un proyecto existente (salta pasos ya completados)
 python scripts/run_pipeline.py --project data/mi_proyecto --static-camera
 
-# Pipeline desde prompt de texto (requiere GOOGLE_API_KEY)
-python scripts/run_pipeline.py --action "Action sequence: The subject walks forward."
+# Desde prompt de texto (requiere GOOGLE_API_KEY)
+python scripts/run_pipeline.py --action "Action sequence: The subject walks forward." --static-camera
+```
 
-# Pasos individuales
+### Retargetar el mismo video a otro robot
+
+Una vez que tienes el `smplx.npz` generado, puedes retargetar a cualquier robot sin reprocesar el video:
+
+```bash
+# Generar para G1 (29 DOF)
+python scripts/convert_to_robot.py --project data/mi_proyecto --robot unitree_g1 --all-tracks
+cp data/mi_proyecto/robot_motion.pkl data/mi_proyecto/robot_motion_g1.pkl
+
+# Generar para H1-2 (27 DOF)
+python scripts/convert_to_robot.py --project data/mi_proyecto --robot unitree_h1_2 --all-tracks
+cp data/mi_proyecto/robot_motion.pkl data/mi_proyecto/robot_motion_h1_2.pkl
+```
+
+### Visualización
+
+Antes de visualizar, asegúrate de que `robot_motion.pkl` corresponde al robot que quieres ver:
+
+```bash
+# Visualizar G1
+cp data/mi_proyecto/robot_motion_g1.pkl data/mi_proyecto/robot_motion.pkl
+python scripts/visualize.py --project data/mi_proyecto --robot --robot-type unitree_g1
+
+# Visualizar H1-2
+cp data/mi_proyecto/robot_motion_h1_2.pkl data/mi_proyecto/robot_motion.pkl
+python scripts/visualize.py --project data/mi_proyecto --robot --robot-type unitree_h1_2
+
+# Visualización en navegador (con video superpuesto)
+python scripts/visualize.py --project data/mi_proyecto --robot-viser
+
+# Pose humana SMPL-X
+python scripts/visualize.py --project data/mi_proyecto --pose
+```
+
+### Pasos individuales
+
+```bash
 python scripts/extract_pose.py --project data/mi_proyecto --static-camera
 python scripts/convert_to_robot.py --project data/mi_proyecto --robot unitree_g1
-
-# Visualización
-python scripts/visualize.py --project data/mi_proyecto --robot        # MuJoCo
-python scripts/visualize.py --project data/mi_proyecto --robot-viser  # navegador
-python scripts/visualize.py --project data/mi_proyecto --pose          # pose humana
 ```
 
 ---
