@@ -190,21 +190,21 @@ def visualize_robot(project_dir: Path, robot_type: str, gmr_env: str, twist: boo
             robot_motion_pkl = project_dir / "robot_motion.pkl"
     else:
         robot_motion_pkl = project_dir / "robot_motion.pkl"
-    
+
     if not robot_motion_pkl.exists():
         print(f"[Error] robot_motion.pkl not found in {project_dir}")
         print(f"[Error] Run: python scripts/convert_to_robot.py --project {project_dir}")
         return
-    
+
     print(f"[Robot] Visualizing: {robot_motion_pkl}")
-    
+
     # Use GMR's visualization
     vis_script = GMR_DIR / "scripts" / "vis_robot_motion.py"
-    
+
     if not vis_script.exists():
         print(f"[Error] GMR visualization script not found: {vis_script}")
         return
-    
+
     argv = [
         "python",
         str(vis_script),
@@ -213,28 +213,108 @@ def visualize_robot(project_dir: Path, robot_type: str, gmr_env: str, twist: boo
         "--robot_motion_path",
         str(robot_motion_pkl.absolute()),
     ]
-    
+
     print(f"[Robot] Env: {gmr_env}")
     print(f"[Robot] Command: {' '.join(argv)}")
     run_in_conda(gmr_env, argv, cwd=GMR_DIR, raise_on_error=False)
 
 
+def record_robot_video(
+    project_dir: Path,
+    robot_type: str,
+    gmr_env: str,
+    *,
+    motion_path: Path | None = None,
+    output_path: Path | None = None,
+    width: int = 1280,
+    height: int = 720,
+    twist: bool = False,
+):
+    """Record robot MuJoCo animation to MP4."""
+    if motion_path is None:
+        suffix = "_twist" if twist else ""
+        # Try named file first (e.g. robot_motion_h1_2.pkl), then generic alias
+        named = project_dir / f"robot_motion_{robot_type}{suffix}.pkl"
+        generic = project_dir / f"robot_motion{suffix}.pkl"
+        motion_path = named if named.exists() else generic
+
+    if not motion_path.exists():
+        print(f"[Error] Motion file not found: {motion_path}")
+        return
+
+    if output_path is None:
+        output_path = project_dir / f"video_robot_{robot_type}.mp4"
+
+    project_root = Path(__file__).parent.parent
+    record_script = project_root / "scripts" / "record_robot_video.py"
+
+    argv = [
+        "python",
+        str(record_script),
+        "--motion", str(motion_path.absolute()),
+        "--robot", robot_type,
+        "--output", str(output_path.absolute()),
+        "--width", str(width),
+        "--height", str(height),
+    ]
+
+    print(f"[RobotRecord] Motion : {motion_path}")
+    print(f"[RobotRecord] Output : {output_path}")
+    print(f"[RobotRecord] Env    : {gmr_env}")
+    run_in_conda(gmr_env, argv, cwd=project_root, raise_on_error=False)
+
+
+def record_pose_video(
+    project_dir: Path,
+    phmr_env: str,
+    *,
+    output_path: Path | None = None,
+    conf_thresh: float = 0.25,
+):
+    """Record 2D pose overlay video to MP4."""
+    if output_path is None:
+        output_path = project_dir / "video_pose.mp4"
+
+    project_root = Path(__file__).parent.parent
+    record_script = project_root / "scripts" / "record_pose_video.py"
+
+    argv = [
+        "python",
+        str(record_script),
+        "--project", str(project_dir.absolute()),
+        "--output", str(output_path.absolute()),
+        "--conf-thresh", str(conf_thresh),
+    ]
+
+    print(f"[PoseRecord] Output : {output_path}")
+    print(f"[PoseRecord] Env    : {phmr_env}")
+    run_in_conda(phmr_env, argv, cwd=project_root, raise_on_error=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Visualize video2robot results")
-    
+
     parser.add_argument("--project", "-p", required=True, help="Project folder path")
-    
+
     # Visualization options
     vis_group = parser.add_mutually_exclusive_group()
     vis_group.add_argument("--pose", action="store_true", help="Visualize pose with viser")
     vis_group.add_argument("--robot-viser", action="store_true", help="Visualize robot in viser (video + camera)")
     vis_group.add_argument("--robot", action="store_true", help="Visualize robot with MuJoCo")
-    
+
     # Robot options
     # NOTE: keep default=None so that `--robot-viser` can fall back to the motion file's robot_type.
     # For `--robot` (MuJoCo), we will default to unitree_g1 if not provided.
     parser.add_argument("--robot-type", default=None, help="Robot type (default: unitree_g1 for --robot, motion file for --robot-viser)")
     parser.add_argument("--twist", action="store_true", help="Visualize TWIST 23DOF motion if available")
+
+    # Video recording
+    parser.add_argument("--record", action="store_true",
+                        help="Record visualization to MP4 instead of interactive view "
+                             "(--pose → video_pose.mp4, --robot → video_robot_<type>.mp4)")
+    parser.add_argument("--record-output", default=None, help="Custom output path for --record")
+    parser.add_argument("--record-width", type=int, default=1280, help="Video width for --record --robot (default 1280)")
+    parser.add_argument("--record-height", type=int, default=720, help="Video height for --record --robot (default 720)")
 
     # Robot-viser options
     parser.add_argument("--total", type=int, default=1500, help="Max video frames to load (robot-viser)")
@@ -254,14 +334,35 @@ def main():
     parser.add_argument("--gmr-env", default="gmr", help="Conda env name for GMR visualization")
 
     args = parser.parse_args()
-    
+
     project_dir = Path(args.project)
     if not project_dir.exists():
         parser.error(f"Project not found: {project_dir}")
 
     if args.robot_all and not args.robot_viser:
         print("[Warn] --robot-all has no effect without --robot-viser")
-    
+
+    if args.record:
+        if args.pose:
+            record_pose_video(
+                project_dir,
+                phmr_env=args.phmr_env,
+                output_path=Path(args.record_output) if args.record_output else None,
+            )
+        elif args.robot:
+            record_robot_video(
+                project_dir,
+                robot_type=args.robot_type or "unitree_g1",
+                gmr_env=args.gmr_env,
+                output_path=Path(args.record_output) if args.record_output else None,
+                width=args.record_width,
+                height=args.record_height,
+                twist=args.twist,
+            )
+        else:
+            print("[Error] --record requires --pose or --robot")
+        return
+
     if args.pose:
         visualize_pose_viser(project_dir, phmr_env=args.phmr_env)
     elif args.robot_viser:
