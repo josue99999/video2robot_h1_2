@@ -11,6 +11,12 @@ Convert any video of a person moving into robot motion data.
 |:---:|:---:|:---:|
 | ![huayno](huayno.gif) | ![H1-2](video_robot_h1_2.gif) | ![G1](video_robot_g1.gif) |
 
+## Demo — Caporal Dance (Peru)
+
+| Original | Unitree H1-2 | Unitree G1 |
+|:---:|:---:|:---:|
+| ![caporal-original](original.gif) | ![caporal-H1-2](video_robot_h1_2_caporal.gif) | ![caporal-G1](video_robot_g1_caporal.gif) |
+
 ---
 
 ## Pipeline
